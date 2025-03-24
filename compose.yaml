@@ -12,41 +12,79 @@ services:
 
   frontend:
     build: frontend
+    env_file:
+      - ./.env
     environment:
       - PORT=8001
+      - AGENT_PORT_APP_RECEIVER=${AGENT_PORT_APP_RECEIVER}
+      - OTEL_SERVICE_NAME=frontend
     ports:
       - "8001:8001"
     depends_on:
+      - alloy
       - products
 
   products:
     build:
-     context: products
+      context: products
     ports:
       - '8002:8002'
     volumes:
       - ./products/app.py:/app/app.py
     depends_on:
       - redis
+      - alloy
+
+  products-beyla:
+    image: grafana/beyla:latest
+    pid: "service:products"
+    privileged: true
+    environment:
+      - BEYLA_TRACE_PRINTER=text
+      - BEYLA_OPEN_PORT=8002
+      - BEYLA_SERVICE_NAME=products
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+      # incoming trace-context is not parsed and BEYLA_BPF_ENABLE_CONTEXT_PROPAGATION
+      # should enabled it, but it needs host network mode which doesn't work with pid.
+      # - BEYLA_BPF_ENABLE_CONTEXT_PROPAGATION=true
+      # - BEYLA_LOG_LEVEL=debug
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+    # network_mode: "host"
+    depends_on:
+      - products
+      - alloy
 
   checkout:
+    env_file:
+      - ./.env
     build:
       context: checkout
     ports:
       - '8003:8003'
+    environment:
+      - OTEL_SERVICE_NAME=checkout
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+    depends_on:
+      - alloy
 
   redis:
-     image: redis:alpine
-     ports:
-       - '6379:6379'
+    image: redis:alpine
+    ports:
+      - '6379:6379'
 
   alloy:
+    env_file:
+      - ./.env
     image: grafana/alloy
-    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy", "--stability.level=experimental"]
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy
     ports:
-      - '12345:12345'
+      - "12345:12345"
+      - '${AGENT_PORT_APP_RECEIVER}:${AGENT_PORT_APP_RECEIVER}'
+      - "4317:4317"
+      - "4318:4318"
 
   load:
     build:

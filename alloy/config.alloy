@@ -2,3 +2,87 @@ logging {
   level  = "info"
   format = "logfmt"
 }
+
+// not used since faro SDK is configured to send to Grafana Cloud directly,
+// keeping it here for reference
+faro.receiver "faro" {
+
+    extra_log_labels = { app = "frontend", kind = "" }
+
+    server {
+        listen_address           = "0.0.0.0"
+        listen_port              = env("AGENT_PORT_APP_RECEIVER")
+        cors_allowed_origins     = ["*"]
+        api_key                  = env("AGENT_KEY_APP_RECEIVER")
+        max_allowed_payload_size = "10MiB"
+
+        rate_limiting {
+            rate = 100
+        }
+    }
+
+    sourcemaps { }
+
+    output {
+      logs    = [loki.process.default.receiver]
+      traces  = [otelcol.exporter.otlphttp.grafana_cloud.input, otelcol.exporter.debug.default.input]
+    }
+}
+
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    logs    = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    metrics = [otelcol.exporter.otlphttp.grafana_cloud.input]
+    logs    = [otelcol.exporter.otlphttp.grafana_cloud.input]
+    traces  = [otelcol.exporter.otlphttp.grafana_cloud.input]
+  }
+}
+
+otelcol.exporter.debug "default" {
+  verbosity = "detailed"
+}
+
+otelcol.exporter.loki "default" {
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.process "default" {
+    forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "https://logs-prod3.grafana.net/loki/api/v1/push"
+
+    basic_auth {
+      username = env("LOKI_INSTANCE_ID")
+      password = env("LOKI_API_KEY")
+    }
+  }
+}
+
+otelcol.exporter.otlphttp "grafana_cloud" {
+	client {
+		endpoint = "https://otlp-gateway-prod-us-central-0.grafana.net/otlp"
+		auth     = otelcol.auth.basic.grafana_cloud.handler
+	}
+}
+
+otelcol.auth.basic "grafana_cloud" {
+	username = env("GRAFANA_CLOUD_INSTANCE_ID")
+	password = env("GRAFANA_CLOUD_API_KEY")
+}

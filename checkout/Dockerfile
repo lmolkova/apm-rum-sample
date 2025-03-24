@@ -4,8 +4,8 @@ WORKDIR /usr/src/app
 
 EXPOSE 8003
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package*.json ./
+RUN npm install
 COPY ./app.js ./
 
-CMD ["npm","start"]
+CMD ["node", "--require", "@opentelemetry/auto-instrumentations-node/register", "app.js"]

@@ -15,3 +15,8 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "cu
 
 ENTRYPOINT ["python3"]
 CMD ["app.py"]
+
+# instrument without beyla
+# RUN opentelemetry-bootstrap -a install
+# ENTRYPOINT ["opentelemetry-instrument"]
+# CMD ["python3", "app.py"]

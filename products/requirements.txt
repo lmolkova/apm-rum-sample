@@ -1,2 +1,7 @@
 flask
 redis
+
+# to instrument without beyla
+# opentelemetry-sdk~=1.30.0
+# opentelemetry-exporter-otlp-proto-grpc~=1.30.0
+# opentelemetry-distro[otlp]~=0.51b0
